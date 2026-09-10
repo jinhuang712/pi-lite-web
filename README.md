@@ -1,4 +1,4 @@
-# pi-lite-websearch
+# 🔍 pi-lite-websearch
 
 A minimal [Pi](https://pi.dev) extension that adds one compact, keyless `websearch` tool. No SDK, no API key, no MCP server process, no build step — and a hard budget on how much context one search may consume.
 
@@ -10,7 +10,7 @@ A minimal [Pi](https://pi.dev) extension that adds one compact, keyless `websear
 - **Terminal capability overrides** — Override detected terminal hyperlink, image, and truecolor support…
 ```
 
-## Why another web search extension?
+## 🤔 Why another web search extension?
 
 | | Provider-hosted search | MCP search server | Raw API passthrough | pi-lite-websearch |
 |---|---|---|---|---|
@@ -22,7 +22,7 @@ A minimal [Pi](https://pi.dev) extension that adds one compact, keyless `websear
 
 The goal is not more data. It is the smallest result that still answers the question: titles, links, dates, and a truncated excerpt instead of a multi-KB page dump.
 
-## Install
+## 📦 Install
 
 As a Pi package (recommended):
 
@@ -44,9 +44,9 @@ Or load it for a single run without installing:
 pi -e /absolute/path/to/pi-lite-websearch/src/index.ts
 ```
 
-Restart Pi after installing. The extension has no runtime dependencies beyond what Pi already provides, and it writes nothing to disk.
+🔄 Restart Pi after installing. The extension has no runtime dependencies beyond what Pi already provides, and it writes nothing to disk.
 
-## Usage
+## 🚀 Usage
 
 Ask a question that needs current information:
 
@@ -72,7 +72,7 @@ Excerpt from the page, truncated at the per-result character budget …
 - Excerpts are truncated at a word boundary and marked with `…`.
 - When the total budget cannot fit another useful excerpt, the tail says `(+N more results omitted)` instead of silently dropping them.
 
-## Configuration
+## ⚙️ Configuration
 
 Everything is environment-based; there is no config file, slash command, or persisted state.
 
@@ -86,9 +86,9 @@ Everything is environment-based; there is no config file, slash command, or pers
 | `PI_WEBSEARCH_PER_RESULT_CHARS` | `1200` | Character budget per excerpt (200–10000) |
 | `PI_WEBSEARCH_TIMEOUT_MS` | `12000` | Per-provider timeout (1000–60000) |
 
-Invalid or blank values fall back to the defaults. A key is never required: a fresh install with no environment variables searches successfully.
+💡 Invalid or blank values fall back to the defaults. A key is never required: a fresh install with no environment variables searches successfully.
 
-## How it works
+## 🧩 How it works
 
 1. `prepareArguments` normalizes whatever the model sent — aliases, numeric strings, out-of-range counts — before schema validation, so a weak model does not burn a round trip on a fixable argument.
 2. The query goes to a keyless MCP endpoint over a single JSON-RPC `tools/call` POST: Exa first, Parallel as failover. Both answer plain HTTP without a session handshake.
@@ -97,7 +97,7 @@ Invalid or blank values fall back to the defaults. A key is never required: a fr
 
 Failures name the provider — `websearch failed (exa: HTTP 500; parallel: timed out)` — and a caller cancel never triggers failover.
 
-## Troubleshooting
+## 🩹 Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
@@ -107,7 +107,7 @@ Failures name the provider — `websearch failed (exa: HTTP 500; parallel: timed
 | Results are too short | The character budget truncated them. | Raise `PI_WEBSEARCH_PER_RESULT_CHARS` / `PI_WEBSEARCH_MAX_CHARS`. |
 | Only one backend is used | `PI_WEBSEARCH_PROVIDER` is pinned. | Unset it to restore failover. |
 
-## Verified
+## ✅ Verified
 
 - `npm test` — 37 tests, no network (fake `Fetcher` injection).
 - `npm run typecheck` — strict TypeScript, no emit.
@@ -117,7 +117,7 @@ Failures name the provider — `websearch failed (exa: HTTP 500; parallel: timed
 - End-to-end in Pi with `doubao-seed-2-1-turbo` and `glm-5.2`, including multi-search turns and Chinese queries.
 - An invalid `EXA_API_KEY` costs that provider its attempt only: the failure is named and Parallel answers 1.5 s later.
 
-## Design
+## 📐 Design
 
 - [GOALS.md](GOALS.md) — what the project is for, with measurable criteria
 - [PHILOSOPHY.md](PHILOSOPHY.md) — the clauses every change is judged against
@@ -125,7 +125,7 @@ Failures name the provider — `websearch failed (exa: HTTP 500; parallel: timed
 - [AGENTS.md](AGENTS.md) — repository rules for agents
 - [GITFLOW.md](GITFLOW.md) — commit conventions
 
-## Development
+## 🛠️ Development
 
 ```bash
 npm install
@@ -141,11 +141,11 @@ pi -p --no-session -nc -nbt -t websearch \
   "Use websearch to find the latest pi release version."
 ```
 
-## Requirements
+## 📋 Requirements
 
 - Pi 0.85 or newer
 - Node.js 22.19 or newer (Pi's own floor)
 
-## License
+## 📄 License
 
 [MIT](LICENSE) · [Changelog](CHANGELOG.md)
