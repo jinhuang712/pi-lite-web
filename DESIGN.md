@@ -69,6 +69,17 @@ aliases, and clamping to 1–10. Queries are whitespace-collapsed and capped at
 1000 characters. This exists because a validation error costs a model round
 trip, and weaker models are exactly who the tool must serve (Clause 4).
 
+### Row ownership
+
+The call line is this extension's, but not unconditionally: Pi has no
+renderer-only tool override, so a row can only be restyled by the extension that
+owns the tool handing it over. `src/row-decoration.ts` does that through the
+row decorator hub `pi-briefly` publishes on `Symbol.for("pi.toolRowDecorator.v1")`.
+The tool name, schema, description, `prepareArguments` and `execute` stay here in
+every case — only `renderCall` / `renderResult` / `renderShell` are handed over,
+and only while terse mode is on. Nothing imports `pi-briefly`, and with it absent
+the registration is byte-for-byte the one this extension always made.
+
 ## Providers
 
 Both backends speak MCP-over-HTTP: one `tools/call` JSON-RPC POST, no session
@@ -213,3 +224,4 @@ unavailable (Clause 2).
 | `websearch` as the tool name | `web_search` (collides conceptually with provider-hosted tools of the same name) | 4 |
 | Tolerant argument normalization | Strict schema (validation round trip for weak models); no normalization (failed calls) | 4 |
 | No `webfetch` in v0.1 | Ship both (two tools' context cost, two capability surfaces to verify) | 1, 7 |
+| Hand the call line to `pi-briefly` when it is installed | Own the row unconditionally (a second, duplicated terse renderer to keep in step); ask Pi for a renderer-only hook (none exists, `registerTool` takes over execution) | 5 |

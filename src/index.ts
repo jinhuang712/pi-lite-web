@@ -5,9 +5,10 @@
  * a keyless search backend and return a bounded, compact answer. See DESIGN.md.
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { bindRowDecoration, readToolRowDecoratorHub } from "./row-decoration.ts";
 import { DEFAULT_MAX_RESULTS, HARD_MAX_RESULTS, prepareArguments, resolveConfig, search } from "./websearch.ts";
 
 const PARAMETERS = Type.Object({
@@ -29,8 +30,17 @@ const DESCRIPTION = [
 	`Current year: ${new Date().getFullYear()}.`,
 ].join(" ");
 
-export default function liteWebsearchExtension(pi: ExtensionAPI) {
-	pi.registerTool({
+/** `details` is what the row renderers and debugging get to work with. */
+type WebsearchDetails = { query: string; numResults: number; provider: string };
+
+type WebsearchDefinition = ToolDefinition<typeof PARAMETERS, WebsearchDetails>;
+
+/**
+ * The tool definition lives in a factory so the decorated re-registration in the
+ * extension body spreads the very same object.
+ */
+function createDefinition(): WebsearchDefinition {
+	return {
 		name: "websearch",
 		label: "Web Search",
 		description: DESCRIPTION,
@@ -55,5 +65,22 @@ export default function liteWebsearchExtension(pi: ExtensionAPI) {
 			const query = typeof args?.query === "string" ? args.query : "";
 			return new Text(`${theme.fg("toolTitle", theme.bold("websearch"))} ${theme.fg("toolOutput", query)}`, 0, 0);
 		},
+	};
+}
+
+export default function liteWebsearchExtension(pi: ExtensionAPI) {
+	const definition = createDefinition();
+	pi.registerTool(definition);
+
+	// The row itself may belong to another extension: hand the presentation over
+	// when pi-briefly is installed, and keep this extension's own line otherwise.
+	// The tool name, schema, description and execution stay ours either way.
+	bindRowDecoration(pi, () => {
+		const decoration = readToolRowDecoratorHub()?.decorate({
+			tool: "websearch",
+			native: { renderCall: definition.renderCall, renderShell: "default" },
+			schema: { parameters: definition.parameters, prepareArguments: definition.prepareArguments },
+		});
+		pi.registerTool(decoration ? { ...definition, ...decoration } : definition);
 	});
 }

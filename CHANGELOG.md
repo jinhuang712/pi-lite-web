@@ -2,6 +2,13 @@
 
 All notable changes to `pi-lite-websearch` are documented here.
 
+## [Unreleased]
+
+### Added
+
+- The call line can be handed over to [pi-briefly](https://github.com/jinhuang712/pi-briefly) through the row decorator hub (`Symbol.for("pi.toolRowDecorator.v1")`): with pi-briefly installed and terse mode on, `websearch` renders as one gray line carrying the query. Nothing imports pi-briefly, the tool name, schema, description, `prepareArguments` and `execute` stay here, and without the hub the registration is unchanged.
+- The handshake re-applies on `session_start` and on `hub.subscribe(...)`, so the row follows the `/briefly` switch without a restart, and no import order between the two extensions matters.
+
 ## [0.1.0] - 2026-09-10
 
 ### Added

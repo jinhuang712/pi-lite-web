@@ -96,6 +96,7 @@ Everything is environment-based; there is no config file, slash command, or pers
 2. The query goes to a keyless MCP endpoint over a single JSON-RPC `tools/call` POST: Exa first, Parallel as failover. Both answer plain HTTP without a session handshake.
 3. The response is parsed into structured results (`Title/URL/Highlights` text for Exa, JSON for Parallel) rather than forwarded verbatim.
 4. `format.ts` renders the numbered list under an explicit character budget.
+5. The call line — `websearch pi coding agent` — is this extension's, unless [pi-briefly](https://github.com/jinhuang712/pi-briefly) is installed and terse mode is on: then the row is handed over through the row decorator hub and drawn as one line. Execution, schema and description never change hands.
 
 Failures name the provider — `websearch failed (exa: HTTP 500; parallel: timed out)` — and a caller cancel never triggers failover.
 
