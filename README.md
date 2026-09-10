@@ -14,11 +14,13 @@ A minimal [Pi](https://pi.dev) extension that adds one compact, keyless `websear
 
 | | Provider-hosted search | MCP search server | Raw API passthrough | pi-lite-websearch |
 |---|---|---|---|---|
-| Works on any model | no | yes | yes | yes |
-| Works with no API key | provider-dependent | usually not | usually not | **yes** |
-| Extra process or config | no | yes | no | no |
-| Output size bounded | provider's choice | provider's choice | provider's choice | **6000 chars by default** |
-| Failover between backends | n/a | no | no | **Exa → Parallel** |
+| Works on any model | ❌ | ✅ | ✅ | ✅ |
+| Works with no API key | ⚠️ provider-dependent | ⚠️ usually not | ⚠️ usually not | **✅** |
+| No extra process or config | ✅ | ❌ | ✅ | ✅ |
+| Output size bounded | ⚠️ provider's choice | ⚠️ provider's choice | ⚠️ provider's choice | **✅ 6000 chars by default** |
+| Failover between backends | ➖ n/a | ❌ | ❌ | **✅ Exa → Parallel** |
+
+✅ yes · ❌ no · ⚠️ depends on the provider · ➖ not applicable
 
 The goal is not more data. It is the smallest result that still answers the question: titles, links, dates, and a truncated excerpt instead of a multi-KB page dump.
 
