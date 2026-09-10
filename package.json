@@ -1,0 +1,29 @@
+{
+	"name": "pi-lite-websearch",
+	"version": "0.1.0",
+	"description": "Minimal keyless web search for Pi: one compact websearch tool, no SDK, small context cost.",
+	"private": true,
+	"type": "module",
+	"license": "MIT",
+	"keywords": ["pi-package", "pi-extension", "pi", "websearch", "web-search"],
+	"files": ["src", "README.md", "LICENSE"],
+	"pi": {
+		"extensions": ["./src/index.ts"]
+	},
+	"scripts": {
+		"test": "node --test --experimental-strip-types test/*.test.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*",
+		"typebox": "*"
+	},
+	"devDependencies": {
+		"@earendil-works/pi-coding-agent": "0.85.1",
+		"@earendil-works/pi-tui": "0.85.1",
+		"@types/node": "^22.20.2",
+		"typebox": "1.3.30",
+		"typescript": "7.0.2"
+	}
+}
