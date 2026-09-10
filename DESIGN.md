@@ -160,6 +160,15 @@ unavailable (Clause 2).
 - Response bodies over 2 MB are refused before parsing.
 - A JSON-RPC `error` payload is surfaced as the provider failure reason, not
   swallowed.
+- A tool-level `result.isError: true` payload is a failure too, even though the
+  HTTP status is 200. Exa answers a bad API key exactly this way, and treating
+  it as content would turn an auth failure into a misleading "no results".
+  Error text is reduced to one bounded line before it reaches the model.
+- An invalid `EXA_API_KEY` / `PARALLEL_API_KEY` can only cost that provider its
+  attempt: the failure is named, failover continues keyless, and the search
+  still succeeds. OpenCode's `opencode` / `opencode-go` credentials are model
+  inference keys and are rejected by both search backends (verified: Exa 401,
+  Parallel 401), so they are deliberately not forwarded.
 
 ## Deliberate Non-Engineering
 

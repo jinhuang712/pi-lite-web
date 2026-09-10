@@ -60,17 +60,36 @@ function readPayload(payload: string): string | undefined {
 	} catch {
 		return undefined;
 	}
-	const envelope = message as { error?: { message?: unknown }; result?: { content?: unknown } };
+	const envelope = message as {
+		error?: { message?: unknown };
+		result?: { content?: unknown; isError?: unknown };
+	};
 	if (envelope.error) {
 		const detail = typeof envelope.error.message === "string" ? envelope.error.message : "provider error";
-		throw new Error(detail);
+		throw new Error(firstLine(detail));
 	}
-	if (!Array.isArray(envelope.result?.content)) return undefined;
+	if (!Array.isArray(envelope.result?.content)) {
+		if (envelope.result?.isError === true) throw new Error("provider returned an error");
+		return undefined;
+	}
+	let text: string | undefined;
 	for (const item of envelope.result.content) {
 		const block = item as { type?: unknown; text?: unknown };
-		if (typeof block?.text === "string" && block.text.trim()) return block.text;
+		if (typeof block?.text === "string" && block.text.trim()) {
+			text = block.text;
+			break;
+		}
 	}
-	return undefined;
+	// MCP reports tool-level failures inside a successful envelope. Exa answers a
+	// bad key with HTTP 200 and `isError: true`, so trusting the status code alone
+	// would misreport an auth failure as "no results".
+	if (envelope.result.isError === true) throw new Error(firstLine(text ?? "provider returned an error"));
+	return text;
+}
+
+/** Error text reaches the model, so keep it to one bounded line. */
+function firstLine(text: string): string {
+	return text.split("\n", 1)[0]!.trim().slice(0, 300) || "provider returned an error";
 }
 
 async function callMcp(

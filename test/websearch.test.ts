@@ -92,6 +92,40 @@ test("search reports an empty result set without throwing", async () => {
 	assert.match(outcome.text, /No search results found/);
 });
 
+test("search reports an invalid key as a provider failure, then fails over", async () => {
+	const calls: string[] = [];
+	const fetcher: Fetcher = async (url) => {
+		calls.push(url);
+		if (url.includes("mcp.exa.ai")) {
+			return new Response(
+				JSON.stringify({
+					result: {
+						content: [{ type: "text", text: "web_search_exa error (401): Invalid API key\nTimestamp: 2026" }],
+						isError: true,
+					},
+				}),
+				{ status: 200 },
+			);
+		}
+		return exaResponse(EXA_TEXT);
+	};
+	const outcome = await search("query", 3, resolveConfig({}), { fetcher });
+	assert.equal(outcome.provider, "parallel");
+	assert.equal(calls.length, 2);
+});
+
+test("search names the invalid key when every provider rejects it", async () => {
+	const fetcher: Fetcher = async () =>
+		new Response(
+			JSON.stringify({ result: { content: [{ type: "text", text: "error (401): Invalid API key" }], isError: true } }),
+			{ status: 200 },
+		);
+	await assert.rejects(
+		() => search("query", 3, resolveConfig({}), { fetcher }),
+		/websearch failed \(exa: error \(401\): Invalid API key; parallel: error \(401\): Invalid API key\)/,
+	);
+});
+
 test("search stops immediately when the caller aborts", async () => {
 	const controller = new AbortController();
 	controller.abort();
