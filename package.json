@@ -6,7 +6,18 @@
 	"type": "module",
 	"license": "MIT",
 	"keywords": ["pi-package", "pi-extension", "pi", "websearch", "web-search"],
-	"files": ["src", "README.md", "LICENSE"],
+	"files": ["src", "README.md", "CHANGELOG.md", "LICENSE"],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/jinhuang712/pi-lite-websearch.git"
+	},
+	"bugs": {
+		"url": "https://github.com/jinhuang712/pi-lite-websearch/issues"
+	},
+	"homepage": "https://github.com/jinhuang712/pi-lite-websearch#readme",
+	"engines": {
+		"node": ">=22.19.0"
+	},
 	"pi": {
 		"extensions": ["./src/index.ts"]
 	},
