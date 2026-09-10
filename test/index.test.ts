@@ -6,16 +6,56 @@ import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 
 type Tool = ToolDefinition<any, any, any>;
 
-function captureTool(): Tool {
+interface Harness {
+	tool: Tool;
+	/** The most recent registration, which is what Pi would use. */
+	current: () => Tool;
+	emit: (event: "session_start" | "session_shutdown") => void;
+}
+
+function createHarness(): Harness {
 	let captured: Tool | undefined;
+	const handlers = new Map<string, Array<() => void>>();
 	const pi = {
 		registerTool(tool: Tool) {
 			captured = tool;
 		},
+		on(event: string, handler: () => void) {
+			const list = handlers.get(event) ?? [];
+			list.push(handler);
+			handlers.set(event, list);
+		},
 	};
 	liteWebsearchExtension(pi as never);
 	assert.ok(captured, "extension must register a tool");
-	return captured;
+	return {
+		tool: captured,
+		current: () => {
+			assert.ok(captured);
+			return captured;
+		},
+		emit: (event) => {
+			for (const handler of handlers.get(event) ?? []) handler();
+		},
+	};
+}
+
+function captureTool(): Tool {
+	return createHarness().tool;
+}
+
+const TOOL_ROW_DECORATOR_KEY = Symbol.for("pi.toolRowDecorator.v1");
+
+function withHub<T>(hub: unknown, run: () => T): T {
+	const globals = globalThis as Record<PropertyKey, unknown>;
+	const previous = globals[TOOL_ROW_DECORATOR_KEY];
+	globals[TOOL_ROW_DECORATOR_KEY] = hub;
+	try {
+		return run();
+	} finally {
+		if (previous === undefined) delete globals[TOOL_ROW_DECORATOR_KEY];
+		else globals[TOOL_ROW_DECORATOR_KEY] = previous;
+	}
 }
 
 const tool = captureTool();
@@ -57,4 +97,54 @@ test("renderCall shows the query and survives partial args", () => {
 
 test("execute rejects an empty query before any network work", async () => {
 	await assert.rejects(() => tool.execute("call", { query: "   " }, undefined, undefined, {} as never), /non-empty query/);
+});
+
+test("session_start hands the row over when pi-briefly is installed", () => {
+	const harness = createHarness();
+	const requests: unknown[] = [];
+	const listener = { current: undefined as (() => void) | undefined };
+	const hub = {
+		decorate(request: unknown) {
+			requests.push(request);
+			return { renderShell: "self", renderCall: () => "DECORATED" };
+		},
+		subscribe(next: () => void) {
+			listener.current = next;
+			return () => {
+				listener.current = undefined;
+			};
+		},
+	};
+
+	withHub(hub, () => {
+		harness.emit("session_start");
+		assert.deepEqual(requests, [
+			{
+				tool: "websearch",
+				native: { renderCall: harness.tool.renderCall, renderShell: "default" },
+				schema: { parameters: harness.tool.parameters, prepareArguments: harness.tool.prepareArguments },
+			},
+		]);
+		assert.equal(harness.current().renderShell, "self");
+		const decorated = harness.current().renderCall as unknown as () => string;
+		assert.equal(decorated(), "DECORATED");
+
+		// The switch flips mid-session: the decoration is re-applied without a restart.
+		assert.ok(listener.current);
+	});
+});
+
+test("session_start restores the native row when the hub is absent or declines", () => {
+	const harness = createHarness();
+	const nativeCall = harness.tool.renderCall;
+
+	harness.emit("session_start");
+	assert.equal(harness.tool.renderShell, undefined);
+	assert.equal(nativeCall, harness.current().renderCall);
+
+	withHub({ decorate: () => undefined, subscribe: () => () => {} }, () => {
+		harness.emit("session_start");
+	});
+	assert.equal(harness.tool.renderShell, undefined);
+	assert.equal(harness.current().renderCall, nativeCall);
 });
