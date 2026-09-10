@@ -46,6 +46,38 @@ test("readMcpText ignores non-payload bodies", () => {
 	assert.equal(readMcpText("<html>nope</html>"), undefined);
 });
 
+test("readMcpText treats isError payloads as failures", () => {
+	const body = JSON.stringify({
+		result: {
+			content: [
+				{ type: "text", text: "web_search_exa error (401): Invalid API key\nTimestamp: 2026-09-10T10:38:35.770Z" },
+			],
+			isError: true,
+		},
+	});
+	assert.throws(() => readMcpText(body), /web_search_exa error \(401\): Invalid API key$/);
+});
+
+test("readMcpText treats SSE isError payloads as failures", () => {
+	const body = `event: message\ndata: ${JSON.stringify({ result: { content: [{ type: "text", text: "rate limited" }], isError: true } })}\n\n`;
+	assert.throws(() => readMcpText(body), /rate limited/);
+});
+
+test("readMcpText survives an isError payload without content", () => {
+	assert.throws(() => readMcpText(JSON.stringify({ result: { isError: true } })), /provider returned an error/);
+});
+
+test("readMcpText keeps error text on one bounded line", () => {
+	try {
+		readMcpText(JSON.stringify({ jsonrpc: "2.0", error: { message: `boom\nmore detail\n${"x".repeat(5000)}` } }));
+		assert.fail("expected a throw");
+	} catch (error) {
+		const message = (error as Error).message;
+		assert.equal(message, "boom");
+		assert.ok(message.length <= 300);
+	}
+});
+
 test("parseExaText extracts compact results", () => {
 	const results = parseExaText(EXA_TEXT);
 	assert.equal(results.length, 2);
