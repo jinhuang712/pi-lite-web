@@ -26,7 +26,7 @@
 
 | type | 用途 | 例子 |
 |---|---|---|
-| `feat` | 新功能、新行为（含提示词行为变化） | 新增 websearch 工具、接入 Parallel |
+| `feat` | 新功能、新行为（含提示词行为变化） | 新增 fetch 工具、接入 Parallel |
 | `fix` | 修 bug（含解析错误、超时、格式化问题） | 修复 SSE 响应解析、修正字数预算 |
 | `refactor` | 重构，行为不变 | 抽出 provider 适配层 |
 | `docs` | 只改文档，不碰行为 | README、DESIGN.md |
@@ -41,7 +41,7 @@
 
 | scope | 范围 |
 |---|---|
-| `tool` | `src/**`（工具契约、provider、格式化） |
+| `tool` | `src/**`（工具契约、transport、provider 解析、格式化） |
 | `test` | `test/**` |
 | 不写 | 根目录（文档、脚本、跨文件改动） |
 

@@ -1,20 +1,20 @@
 {
-	"name": "pi-lite-websearch",
-	"version": "0.1.0",
-	"description": "Minimal keyless web search for Pi: one compact websearch tool, no SDK, small context cost.",
+	"name": "pi-lite-web",
+	"version": "0.2.0",
+	"description": "Two compact, keyless web tools for Pi: search and fetch. No SDK, no API key, bounded context cost.",
 	"private": true,
 	"type": "module",
 	"license": "MIT",
-	"keywords": ["pi-package", "pi-extension", "pi", "websearch", "web-search"],
+	"keywords": ["pi-package", "pi-extension", "pi", "web-search", "web-fetch"],
 	"files": ["src", "README.md", "CHANGELOG.md", "LICENSE"],
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/jinhuang712/pi-lite-websearch.git"
+		"url": "git+https://github.com/jinhuang712/pi-lite-web.git"
 	},
 	"bugs": {
-		"url": "https://github.com/jinhuang712/pi-lite-websearch/issues"
+		"url": "https://github.com/jinhuang712/pi-lite-web/issues"
 	},
-	"homepage": "https://github.com/jinhuang712/pi-lite-websearch#readme",
+	"homepage": "https://github.com/jinhuang712/pi-lite-web#readme",
 	"engines": {
 		"node": ">=22.19.0"
 	},
