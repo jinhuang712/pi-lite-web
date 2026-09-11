@@ -14,7 +14,7 @@
 export type RowCallRenderer = (...args: any[]) => any;
 
 export interface ToolRowDecorationRequest {
-	/** The tool name as Pi sees it, for example `websearch`. */
+	/** The tool name as Pi sees it, for example `search`. */
 	tool: string;
 	/** This extension's own renderers, used when the row is expanded or terse is off. */
 	native?: {

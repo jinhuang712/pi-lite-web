@@ -1,24 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Value } from "typebox/value";
-import liteWebsearchExtension from "../src/index.ts";
+import liteWebExtension from "../src/index.ts";
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 
 type Tool = ToolDefinition<any, any, any>;
 
 interface Harness {
-	tool: Tool;
-	/** The most recent registration, which is what Pi would use. */
-	current: () => Tool;
+	/** The most recent registration per tool name, which is what Pi would use. */
+	tools: Map<string, Tool>;
 	emit: (event: "session_start" | "session_shutdown") => void;
 }
 
 function createHarness(): Harness {
-	let captured: Tool | undefined;
+	const tools = new Map<string, Tool>();
 	const handlers = new Map<string, Array<() => void>>();
 	const pi = {
 		registerTool(tool: Tool) {
-			captured = tool;
+			tools.set(tool.name, tool);
 		},
 		on(event: string, handler: () => void) {
 			const list = handlers.get(event) ?? [];
@@ -26,22 +25,13 @@ function createHarness(): Harness {
 			handlers.set(event, list);
 		},
 	};
-	liteWebsearchExtension(pi as never);
-	assert.ok(captured, "extension must register a tool");
+	liteWebExtension(pi as never);
 	return {
-		tool: captured,
-		current: () => {
-			assert.ok(captured);
-			return captured;
-		},
+		tools,
 		emit: (event) => {
 			for (const handler of handlers.get(event) ?? []) handler();
 		},
 	};
-}
-
-function captureTool(): Tool {
-	return createHarness().tool;
 }
 
 const TOOL_ROW_DECORATOR_KEY = Symbol.for("pi.toolRowDecorator.v1");
@@ -58,93 +48,78 @@ function withHub<T>(hub: unknown, run: () => T): T {
 	}
 }
 
-const tool = captureTool();
+const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text } as never;
+const { tools } = createHarness();
+const searchTool = tools.get("search")!;
+const fetchTool = tools.get("fetch")!;
 
-const theme = {
-	fg: (_color: string, text: string) => text,
-	bold: (text: string) => text,
-} as never;
-
-test("registers exactly one websearch tool", () => {
-	assert.equal(tool.name, "websearch");
-	assert.equal(tool.label, "Web Search");
-	assert.match(tool.description, /current information/);
-	assert.match(tool.description, new RegExp(String(new Date().getFullYear())));
-	assert.equal(tool.promptSnippet, "Search the web for current facts, docs, news, and prices");
-	assert.equal(tool.promptGuidelines, undefined);
+test("registers exactly two tools: search and fetch", () => {
+	assert.deepEqual([...tools.keys()].sort(), ["fetch", "search"]);
+	assert.equal(searchTool.label, "Web Search");
+	assert.match(searchTool.description, /current information/);
+	assert.match(searchTool.description, new RegExp(String(new Date().getFullYear())));
+	assert.equal(fetchTool.label, "Web Fetch");
+	assert.match(fetchTool.description, /Read one web page/);
+	assert.equal(searchTool.promptGuidelines, undefined);
+	assert.equal(fetchTool.promptGuidelines, undefined);
 });
 
-test("schema accepts the documented argument shapes", () => {
-	assert.ok(Value.Check(tool.parameters, { query: "hello" }));
-	assert.ok(Value.Check(tool.parameters, { query: "hello", numResults: 5 }));
-	assert.ok(!Value.Check(tool.parameters, {}));
-	assert.ok(!Value.Check(tool.parameters, { query: 42 }));
+test("schemas accept the documented argument shapes", () => {
+	assert.ok(Value.Check(searchTool.parameters, { query: "hello" }));
+	assert.ok(Value.Check(searchTool.parameters, { query: "hello", numResults: 5 }));
+	assert.ok(!Value.Check(searchTool.parameters, {}));
+	assert.ok(Value.Check(fetchTool.parameters, { url: "https://a.test" }));
+	assert.ok(Value.Check(fetchTool.parameters, { url: "https://a.test", maxChars: 2000 }));
+	assert.ok(!Value.Check(fetchTool.parameters, {}));
 });
 
-test("prepareArguments is wired and clamps before validation", () => {
-	const prepare = tool.prepareArguments!;
-	const normalized = prepare({ q: "  spaced   query ", limit: "99" });
-	assert.deepEqual(normalized, { query: "spaced query", numResults: 10 });
-	assert.ok(Value.Check(tool.parameters, normalized));
+test("prepareArguments is wired on both tools and clamps before validation", () => {
+	const searched = searchTool.prepareArguments!({ q: "  spaced   query ", limit: "99" });
+	assert.deepEqual(searched, { query: "spaced query", numResults: 10 });
+	assert.ok(Value.Check(searchTool.parameters, searched));
+	const fetched = fetchTool.prepareArguments!({ link: "example.com", max_chars: "99999999" });
+	assert.deepEqual(fetched, { url: "https://example.com", maxChars: 50_000 });
+	assert.ok(Value.Check(fetchTool.parameters, fetched));
 });
 
-test("renderCall shows the query and survives partial args", () => {
-	const full = tool.renderCall!({ query: "pi coding agent" }, theme, {} as never) as { render(width: number): string[] };
-	assert.equal(full.render(120).join("\n").trimEnd(), "websearch pi coding agent");
-	const partial = tool.renderCall!({} as never, theme, {} as never) as { render(width: number): string[] };
-	assert.equal(partial.render(120).join("\n").trim(), "websearch");
+test("renderCall shows the argument and survives partial args", () => {
+	type Rendered = { render(width: number): string[] };
+	assert.equal((searchTool.renderCall!({ query: "pi coding agent" }, theme, {} as never) as Rendered).render(120).join("\n").trimEnd(), "search pi coding agent");
+	assert.equal((searchTool.renderCall!({} as never, theme, {} as never) as Rendered).render(120).join("\n").trim(), "search");
+	assert.equal((fetchTool.renderCall!({ url: "https://a.test" }, theme, {} as never) as Rendered).render(120).join("\n").trimEnd(), "fetch https://a.test");
 });
 
-test("execute rejects an empty query before any network work", async () => {
-	await assert.rejects(() => tool.execute("call", { query: "   " }, undefined, undefined, {} as never), /non-empty query/);
+test("execute rejects bad input before any network work", async () => {
+	await assert.rejects(() => searchTool.execute("call", { query: "   " }, undefined, undefined, {} as never), /non-empty query/);
+	await assert.rejects(() => fetchTool.execute("call", { url: "not a url" }, undefined, undefined, {} as never), /full http\(s\) URL/);
 });
 
-test("session_start hands the row over when pi-briefly is installed", () => {
+test("session_start hands both rows over when pi-briefly is installed", () => {
 	const harness = createHarness();
-	const requests: unknown[] = [];
-	const listener = { current: undefined as (() => void) | undefined };
+	const requested: string[] = [];
 	const hub = {
-		decorate(request: unknown) {
-			requests.push(request);
-			return { renderShell: "self", renderCall: () => "DECORATED" };
+		decorate(request: { tool: string }) {
+			requested.push(request.tool);
+			return { renderShell: "self", renderCall: () => `DECORATED ${request.tool}` };
 		},
-		subscribe(next: () => void) {
-			listener.current = next;
-			return () => {
-				listener.current = undefined;
-			};
-		},
+		subscribe: () => () => {},
 	};
-
-	withHub(hub, () => {
-		harness.emit("session_start");
-		assert.deepEqual(requests, [
-			{
-				tool: "websearch",
-				native: { renderCall: harness.tool.renderCall, renderShell: "default" },
-				schema: { parameters: harness.tool.parameters, prepareArguments: harness.tool.prepareArguments },
-			},
-		]);
-		assert.equal(harness.current().renderShell, "self");
-		const decorated = harness.current().renderCall as unknown as () => string;
-		assert.equal(decorated(), "DECORATED");
-
-		// The switch flips mid-session: the decoration is re-applied without a restart.
-		assert.ok(listener.current);
-	});
+	withHub(hub, () => harness.emit("session_start"));
+	assert.deepEqual(requested.sort(), ["fetch", "search"]);
+	for (const name of ["search", "fetch"]) {
+		const tool = harness.tools.get(name)!;
+		assert.equal(tool.renderShell, "self");
+		assert.equal((tool.renderCall as unknown as () => string)(), `DECORATED ${name}`);
+		assert.equal(tool.name, name);
+	}
 });
 
-test("session_start restores the native row when the hub is absent or declines", () => {
+test("session_start keeps the native rows when the hub is absent or declines", () => {
 	const harness = createHarness();
-	const nativeCall = harness.tool.renderCall;
-
+	const native = harness.tools.get("search")!.renderCall;
 	harness.emit("session_start");
-	assert.equal(harness.tool.renderShell, undefined);
-	assert.equal(nativeCall, harness.current().renderCall);
-
-	withHub({ decorate: () => undefined, subscribe: () => () => {} }, () => {
-		harness.emit("session_start");
-	});
-	assert.equal(harness.tool.renderShell, undefined);
-	assert.equal(harness.current().renderCall, nativeCall);
+	assert.equal(harness.tools.get("search")!.renderShell, undefined);
+	assert.equal(harness.tools.get("search")!.renderCall, native);
+	withHub({ decorate: () => undefined, subscribe: () => () => {} }, () => harness.emit("session_start"));
+	assert.equal(harness.tools.get("fetch")!.renderShell, undefined);
 });
