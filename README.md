@@ -1,132 +1,127 @@
-# 🔍 pi-lite-websearch
+# 🌐 pi-lite-web
 
-A minimal [Pi](https://pi.dev) extension that adds one compact, keyless `websearch` tool. No SDK, no API key, no MCP server process, no build step — and a hard budget on how much context one search may consume.
+Two compact, keyless web tools for [Pi](https://pi.dev): `search` and `fetch`. No SDK, no API key, no server process, no build step, and a hard budget on how much context one call may consume.
 
 ```text
 > what changed in the latest pi release?
 
-1. [packages/coding-agent/CHANGELOG.md](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/CHANGELOG.md) (2026-08-28)
-### New Features
-- **Terminal capability overrides** — Override detected terminal hyperlink, image, and truecolor support…
-```
+search pi coding agent changelog
+1. [Changelog](https://pi.dev/news/releases)
+## Pi 0.84.4
+New version of pi. Download from npm or view release on GitHub.
+…
 
-## 🤔 Why another web search extension?
+fetch https://pi.dev/news/releases
+[Changelog](https://pi.dev/news/releases)
 
-| | Provider-hosted search | MCP search server | Raw API passthrough | pi-lite-websearch |
-|---|---|---|---|---|
-| Works on any model | ❌ | ✅ | ✅ | ✅ |
-| Works with no API key | ⚠️ provider-dependent | ⚠️ usually not | ⚠️ usually not | **✅** |
-| No extra process or config | ✅ | ❌ | ✅ | ✅ |
-| Output size bounded | ⚠️ provider's choice | ⚠️ provider's choice | ⚠️ provider's choice | **✅ 6000 chars by default** |
-| Failover between backends | ➖ n/a | ❌ | ❌ | **✅ Exa → Parallel** |
-
-✅ yes · ❌ no · ⚠️ depends on the provider · ➖ not applicable
-
-The goal is not more data. It is the smallest result that still answers the question: titles, links, dates, and a truncated excerpt instead of a multi-KB page dump.
-
-## 📦 Install
-
-As a Pi package (recommended):
-
-```bash
-pi install git:github.com/jinhuang712/pi-lite-websearch
-```
-
-From a local checkout:
-
-```bash
-git clone https://github.com/jinhuang712/pi-lite-websearch.git
-cd pi-lite-websearch
-pi install -l "$PWD"
-```
-
-Or load it for a single run without installing:
-
-```bash
-pi -e /absolute/path/to/pi-lite-websearch/src/index.ts
-```
-
-🔄 Restart Pi after installing. The extension has no runtime dependencies beyond what Pi already provides, and it writes nothing to disk.
-
-## 🚀 Usage
-
-Ask a question that needs current information:
-
-```text
-> what's new in the latest pi release?
-> find the official docs for bun's test runner
-> 深圳到香港高铁的时刻表在哪看
-```
-
-The model calls `websearch` with a query and, optionally, `numResults` (1–10). Requests are capped at `PI_WEBSEARCH_MAX_RESULTS` regardless of what the model asks for, so one search cannot grow the context on its own.
-
-### Result format
-
-```text
-1. [Title of the page](https://example.com/page) (2026-08-28)
-Excerpt from the page, truncated at the per-result character budget …
-
-2. [Another result](https://example.com/other)
+## Pi 0.84.4
 …
 ```
 
-- Titles link to the source; publish dates are included only when the provider reports a real one.
-- Excerpts are truncated at a word boundary and marked with `…`.
-- When the total budget cannot fit another useful excerpt, the tail says `(+N more results omitted)` instead of silently dropping them.
+## 🤔 Why
+
+| | Provider-hosted search | MCP server | Raw API passthrough | pi-lite-web |
+|---|---|---|---|---|
+| Works on any model | ❌ | ✅ | ✅ | ✅ |
+| Works with no API key | ⚠️ provider-dependent | ⚠️ usually not | ⚠️ usually not | ✅ |
+| No extra process or config | ✅ | ❌ | ✅ | ✅ |
+| Output size bounded | ⚠️ provider's choice | ⚠️ provider's choice | ⚠️ provider's choice | ✅ search 6000 · fetch 8000 chars |
+| Failover between backends | ➖ | ❌ | ❌ | ✅ Exa → Parallel |
+
+✅ yes · ❌ no · ⚠️ depends · ➖ not applicable
+
+The goal is the smallest result that still answers the question. A search returns titles, links, dates and a short excerpt. A fetch returns one page's body, cut at a budget that says so when it cuts.
+
+## 📦 Install
+
+```bash
+pi install git:github.com/jinhuang712/pi-lite-web
+```
+
+From a checkout, or for one run without installing:
+
+```bash
+pi install -l /path/to/pi-lite-web
+pi -e /path/to/pi-lite-web/src/index.ts
+```
+
+Restart Pi after installing. Nothing is written to disk.
+
+## 🚀 Tools
+
+### `search`
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `query` | string | Keywords or a natural-language description of the page |
+| `numResults` | number, optional | 1–10, default 5, capped at `PI_WEB_SEARCH_RESULTS` |
+
+```text
+1. [Title](https://example.com/page) (2026-08-28)
+Excerpt, truncated at a word boundary …
+
+2. [Another](https://example.com/other)
+…
+
+(+2 more results omitted)
+```
+
+### `fetch`
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `url` | string | Full http(s) URL; a missing scheme becomes `https://` |
+| `maxChars` | number, optional | Default 8000, capped at `PI_WEB_FETCH_CHARS` |
+
+```text
+[Page title](https://example.com/page)
+
+Page body as markdown-ish text …
+
+(truncated at 8000 characters)
+```
+
+Both tools accept sloppy arguments from weaker models: `q` / `search_query` / `link` / `href` aliases, numeric strings, a bare string instead of an object. Normalization happens before schema validation so no round trip is wasted.
 
 ## ⚙️ Configuration
 
-Everything is environment-based; there is no config file, slash command, or persisted state.
+Environment only. Every variable has a working default; blank or invalid values fall back to it. A fresh install with none of them set works.
 
 | Variable | Default | Purpose |
-|----------|---------|---------|
-| `EXA_API_KEY` | unset | Higher Exa rate limits (optional) |
-| `PARALLEL_API_KEY` | unset | Higher Parallel rate limits (optional) |
-| `PI_WEBSEARCH_PROVIDER` | `auto` | `exa` or `parallel` to pin one backend; anything else keeps Exa → Parallel failover |
-| `PI_WEBSEARCH_MAX_RESULTS` | `5` | Results requested per search (1–10) |
-| `PI_WEBSEARCH_MAX_CHARS` | `6000` | Character budget for the whole result (500–50000) |
-| `PI_WEBSEARCH_PER_RESULT_CHARS` | `1200` | Character budget per excerpt (200–10000) |
-| `PI_WEBSEARCH_TIMEOUT_MS` | `12000` | Per-provider timeout (1000–60000) |
-
-💡 Invalid or blank values fall back to the defaults. A key is never required: a fresh install with no environment variables searches successfully.
+|---|---|---|
+| `PI_WEB_PROVIDER` | auto | `exa` or `parallel` pins one backend; anything else keeps Exa → Parallel failover |
+| `PI_WEB_TIMEOUT_MS` | `12000` | Per-provider timeout (1000–60000) |
+| `PI_WEB_SEARCH_RESULTS` | `5` | Results per search and the ceiling the model may request (1–10) |
+| `PI_WEB_SEARCH_CHARS` | `6000` | Budget for one whole search result (500–50000) |
+| `PI_WEB_SEARCH_RESULT_CHARS` | `1200` | Budget for one excerpt (200–10000) |
+| `PI_WEB_FETCH_CHARS` | `8000` | Budget for one fetched page and the ceiling the model may request (500–50000) |
+| `EXA_API_KEY` | unset | Higher Exa rate limits |
+| `PARALLEL_API_KEY` | unset | Higher Parallel rate limits |
 
 ## 🧩 How it works
 
-1. `prepareArguments` normalizes whatever the model sent — aliases, numeric strings, out-of-range counts — before schema validation, so a weak model does not burn a round trip on a fixable argument.
-2. The query goes to a keyless MCP endpoint over a single JSON-RPC `tools/call` POST: Exa first, Parallel as failover. Both answer plain HTTP without a session handshake.
-3. The response is parsed into structured results (`Title/URL/Highlights` text for Exa, JSON for Parallel) rather than forwarded verbatim.
-4. `format.ts` renders the numbered list under an explicit character budget.
-5. The call line — `websearch pi coding agent` — is this extension's, unless [pi-briefly](https://github.com/jinhuang712/pi-briefly) is installed and terse mode is on: then the row is handed over through the row decorator hub and drawn as one line. Execution, schema and description never change hands.
+Both backends expose an MCP endpoint that answers one `tools/call` JSON-RPC POST over plain HTTP, with no session handshake. That is the entire transport.
 
-Failures name the provider — `websearch failed (exa: HTTP 500; parallel: timed out)` — and a caller cancel never triggers failover.
+| | Exa | Parallel |
+|---|---|---|
+| search | `web_search_exa` | `web_search` |
+| fetch | `web_fetch_exa` | `web_fetch` with `full_content` |
+| auth | none, optional `?exaApiKey=` | none, optional bearer token |
+
+Providers run in order. The next one runs when the current one throws or answers with nothing. Failures name the provider, `search failed (exa: HTTP 500; parallel: timed out)`, and a cancel from Pi never triggers failover.
+
+When [pi-briefly](https://github.com/jinhuang712/pi-briefly) is installed and terse mode is on, both call lines are handed to it through the row decorator hub. Names, schemas and execution stay here.
 
 ## 🩹 Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `websearch failed (exa: … 401: Invalid API key)` | `EXA_API_KEY` is set but wrong. The key is Exa's, not another provider's. | Unset it (keyless still works) or use a valid Exa key. |
-| `No search results found for "…"` | The provider answered, but found nothing. | Rephrase the query; a natural-language description of the page you want works better than bare keywords. |
-| `websearch failed (exa: timed out; parallel: timed out)` | Both backends are unreachable or slow. | Check connectivity, or raise `PI_WEBSEARCH_TIMEOUT_MS`. |
-| Results are too short | The character budget truncated them. | Raise `PI_WEBSEARCH_PER_RESULT_CHARS` / `PI_WEBSEARCH_MAX_CHARS`. |
-| Only one backend is used | `PI_WEBSEARCH_PROVIDER` is pinned. | Unset it to restore failover. |
-
-## ✅ Verified
-
-- `npm test` — 37 tests, no network (fake `Fetcher` injection).
-- `npm run typecheck` — strict TypeScript, no emit.
-- Zero-config search with a stripped environment (`env -i`, no keys at all): 3 results in 1.7 s.
-- Compaction: the same Exa query returned 20,834 characters raw and 5,450 characters rendered (−73%).
-- Latency: Exa 1.4–1.6 s, Parallel 1.0 s.
-- End-to-end in Pi with `doubao-seed-2-1-turbo` and `glm-5.2`, including multi-search turns and Chinese queries.
-- An invalid `EXA_API_KEY` costs that provider its attempt only: the failure is named and Parallel answers 1.5 s later.
-
-## 📐 Design
-
-- [GOALS.md](GOALS.md) — what the project is for, with measurable criteria
-- [PHILOSOPHY.md](PHILOSOPHY.md) — the clauses every change is judged against
-- [DESIGN.md](DESIGN.md) — providers, budgets, failover, decision log
-- [AGENTS.md](AGENTS.md) — repository rules for agents
-- [GITFLOW.md](GITFLOW.md) — commit conventions
+| `search failed (exa: … 401: Invalid API key)` | `EXA_API_KEY` is set but wrong | Unset it, keyless still works, or use a valid Exa key |
+| `No search results found for "…"` | The provider answered with nothing | Rephrase; describing the page works better than bare keywords |
+| `Nothing readable at https://…` | The page is empty, blocked, or behind a login | Try another URL for the same content |
+| `… failed (exa: timed out; parallel: timed out)` | Both backends unreachable or slow | Check connectivity or raise `PI_WEB_TIMEOUT_MS` |
+| Output is cut short | The character budget | Raise `PI_WEB_SEARCH_RESULT_CHARS` / `PI_WEB_FETCH_CHARS`, or pass `maxChars` |
+| Only one backend is used | `PI_WEB_PROVIDER` is pinned | Unset it |
 
 ## 🛠️ Development
 
@@ -136,19 +131,23 @@ npm test           # node --test, no network
 npm run typecheck  # tsc --noEmit
 ```
 
-Live smoke test:
+Live smoke:
 
 ```bash
-pi -p --no-session -nc -nbt -t websearch \
-  -e "$PWD/src/index.ts" \
-  "Use websearch to find the latest pi release version."
+pi -p --no-session -nc -nbt -t search,fetch -e "$PWD/src/index.ts" \
+  "Use search to find the pi changelog, then fetch it and name the newest version."
 ```
+
+- [DESIGN.md](DESIGN.md) — principles, budgets, providers, decision log
+- [AGENTS.md](AGENTS.md) — rules for agents changing this repository
+- [GITFLOW.md](GITFLOW.md) — commit conventions
+- [CHANGELOG.md](CHANGELOG.md)
 
 ## 📋 Requirements
 
 - Pi 0.85 or newer
-- Node.js 22.19 or newer (Pi's own floor)
+- Node.js 22.19 or newer
 
 ## 📄 License
 
-[MIT](LICENSE) · [Changelog](CHANGELOG.md)
+[MIT](LICENSE)
