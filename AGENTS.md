@@ -2,83 +2,75 @@
 
 ## Project
 
-`pi-lite-websearch` is a Pi extension that adds one compact, keyless
-`websearch` tool.
+`pi-lite-web` is a Pi extension that adds two compact, keyless tools: `search`
+and `fetch`. Read `DESIGN.md` before changing behavior; it holds the
+principles, budgets, provider contracts and the decision log. `README.md` is
+the user manual. Entry point: `src/index.ts`.
 
-Read before changing behavior:
+## Rules
 
-- `GOALS.md` — what the project is for and how claims are checked
-- `PHILOSOPHY.md` — the criteria every change is judged against
-- `DESIGN.md` — the concrete design, budgets, providers, and decision log
+1. **Two tools, one job each.** `search` returns results; `fetch` returns one
+   page. Re-ranking, query rewriting, crawling, caching and HTML parsing on this
+   side of the wire are out of scope.
+2. **Budget every output.** No code path returns unbounded provider text to
+   the model, error messages included. Truncation is always visible.
+3. **Zero-config keeps working.** A fresh install with no environment variables
+   works. Keys and knobs adjust depth, never availability.
+4. **No runtime dependencies, build steps, or disk state.** `typebox` and the
+   `@earendil-works/*` imports are host-provided. Anything else needs a
+   decision recorded in `DESIGN.md` first.
+5. **Model-agnostic.** Plain schemas, plain text, tolerant argument
+   normalization. No enums, unions, or provider-specific constructs.
+6. **Failover, never retry.** One ordered pass, failures named by provider, a
+   caller abort is not a failure. The loop lives in `mcp.ts` and is shared.
+7. **Keep `search.ts`, `fetch.ts`, `mcp.ts`, `config.ts` free of Pi imports.**
+   `index.ts` is the only module that knows Pi exists.
 
-Entry point: `src/index.ts`.
+## Layout
 
-## Non-Negotiable Design Rules
+| Path | Owns |
+|------|------|
+| `src/index.ts` | Names, schemas, descriptions, call lines, pi-briefly handshake |
+| `src/config.ts` | Environment resolution and clamps, shared argument helpers |
+| `src/mcp.ts` | Transport, response framing, failover, text helpers |
+| `src/search.ts` | Search behavior: arguments, provider calls, parsers, rendering |
+| `src/fetch.ts` | Fetch behavior: arguments, provider calls, parsers, rendering |
+| `src/row-decoration.ts` | Optional row handover to pi-briefly |
 
-1. **Search only.**
-   Return search results. Fetching URLs, crawling, query rewriting, and result
-   re-ranking are reserved capabilities (`GOALS.md`), not gaps to fill.
-2. **Budget every output.**
-   No code path returns unbounded provider text to the model. `format.ts` owns
-   the budget; `providers.ts` never returns raw payloads upward.
-3. **Zero-config must keep working.**
-   A fresh install with no environment variables searches successfully. API
-   keys and env knobs may only adjust depth.
-4. **No new runtime dependencies, build steps, or disk state.**
-   `typebox` and `@earendil-works/pi-tui` are host-provided. If a change needs
-   anything else, it needs a design decision recorded in `DESIGN.md` first.
-5. **Stay model-agnostic.**
-   Plain schemas, plain text output, tolerant argument normalization. No
-   enums, unions, or provider-specific constructs.
-6. **Failover, never retry.**
-   One ordered pass across providers; a failure is recorded with its provider
-   name; a caller abort is not a provider failure.
-7. **Keep `websearch.ts` free of Pi imports.**
-   Logic that can be tested without the host must stay testable without it.
+TypeScript is strict. Local imports use explicit `.ts` extensions, matching
+the host's Jiti resolution. Provider layouts are parsed, not trusted: when a
+provider changes shape, add a fixture to the matching test file and keep a
+fallback, rather than widening the parser speculatively.
 
 ## Commands
 
 ```bash
-npm test           # node --test, no network access
+npm test           # node --test, no network
 npm run typecheck  # tsc --noEmit
 ```
 
-There is no build step and no lint script.
+Live smoke is manual:
 
-## Implementation Notes
-
-- `src/index.ts` owns the tool name, description, schema, and TUI call line.
-  It contains no search logic.
-- `src/websearch.ts` owns config, argument normalization, provider order,
-  timeouts, failover, and error text.
-- `src/providers.ts` owns transport and response parsing into `SearchResult[]`.
-- `src/format.ts` owns the character budget and the compact rendering.
-- TypeScript is strict. Local imports use explicit `.ts` extensions, matching
-  the host's Jiti resolution.
-- The provider text layouts are parsed, not trusted. When a provider changes
-  its output, add a fixture to `test/providers.test.ts` and keep a fallback in
-  place rather than widening the parser speculatively.
+```bash
+pi -p --no-session -nc -nbt -t search,fetch -e "$PWD/src/index.ts" "<prompt>"
+```
 
 ## Testing
 
 - Every behavior change lands with a test that fails without it.
 - Tests never touch the network; inject a fake `Fetcher`.
-- Budget changes are pinned by assertions on length or content, not by eyeballing
-  a live response.
-- Live smoke checks are manual, not part of `npm test`:
-  `pi -p --no-session -nc -nbt -t websearch -e "$PWD/src/index.ts" "<prompt>"`
-- In this repository, `node --test --experimental-strip-types test/*.test.ts`
-  is norm; Node 26 runs it directly.
+- Budgets are pinned by assertions on length or content.
+- One test file per source module: `mcp`, `search`, `fetch`, `index`.
 
-## Scope Boundaries
+## Boundaries
 
-- Do not modify Pi itself as part of this extension; Pi bugs and API gaps need
-  a separate proposal.
-- Do not import from other extensions or assume their presence.
-- Do not add a config UI, persistent settings file, or session cache without a
-  GOALS/DESIGN decision.
-- Keep `README.md`, `DESIGN.md`, and tests in step with behavior. A behavior
-  change with stale docs is an unfinished change.
+- Do not modify Pi or import from other extensions. pi-briefly is reached only
+  through the global symbol in `row-decoration.ts`, and its absence must leave
+  the registration unchanged.
+- Do not add a config UI, settings file, or session cache without a
+  `DESIGN.md` decision.
+- `README.md`, `DESIGN.md`, `CHANGELOG.md` and tests move with behavior. A
+  change with stale docs is unfinished.
 
 ## Commits
 

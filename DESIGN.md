@@ -1,227 +1,172 @@
-# pi-lite-websearch Design
+# pi-lite-web Design
 
-> Established 2026-09-10. Concrete decisions behind the implementation. The
-> criteria live in PHILOSOPHY.md; the deliverables and their measures live in
-> GOALS.md.
+> Established 2026-09-10, revised 2026-09-11 when `fetch` shipped and the
+> extension was renamed from pi-lite-websearch. Principles, goals, concrete
+> decisions and the decision log live here; the README is the user manual.
 
-## Overview
+## Proposition
 
-One Pi extension, one tool, two keyless search backends, no runtime
-dependencies.
+> A web tool is a context transformer, not a data pipe.
+
+The provider moves bytes; this extension decides what the model pays to read.
+Output is judged per token, not per response. Every returned character is a
+deliberate purchase, coverage is the provider's problem, and the default answer
+to "should we return more?" is no.
+
+## Principles
+
+Every change is walked through these in order. A hit means the change takes a
+different shape or does not ship. Numbers are permanent so decisions can cite them.
+
+| # | Principle | In practice |
+|---|-----------|-------------|
+| 1 | **The model pays for every character.** | Every output has a documented default budget and a hard ceiling, error text included. A truncated result says so. |
+| 2 | **Zero config must answer the question.** | No credential on the default path. Deleting every environment variable changes nothing essential. |
+| 3 | **Speed is a feature; the worst case is bounded.** | One request per call on the happy path, short timeouts, one bounded failover attempt, no retry loops. |
+| 4 | **No model left behind.** | Plain schemas (no enums, no unions), plain-text output, tolerant argument normalization, instructions in the tool description rather than the system prompt. |
+| 5 | **Failover beats retry.** | Providers are ordered; the next runs only after the previous fails or answers with nothing. Failures name the provider. Caller cancellation is not a failure. |
+| 6 | **Smallness produces reliability.** | Only host-provided imports, no build step, no disk state, the fewest modules that can be tested independently. |
+| 7 | **Tighten scope, reserve capability.** | Two tools, each doing one thing. Provider specifics stay behind the adapter boundary; adding one touches no budget, format, or registration code. |
+
+## Goals
+
+| # | Goal | How it is checked |
+|---|------|-------------------|
+| G1 | Zero-config: fresh install, no env vars, no key, both tools work | Live smoke with a stripped environment (`env -i`) |
+| G2 | Small context cost: search ≤ 6000 chars, fetch ≤ 8000 chars by default; payloads compacted, never forwarded | Unit tests pin the budgets; live search measured 20.8 KB raw → 5.5 KB rendered |
+| G3 | Fast: typical call 0.3–2 s, worst case 12 s per provider | Live smoke; `AbortSignal.timeout` at the transport |
+| G4 | Model-agnostic | Verified end-to-end on `doubao-seed-2-1-turbo`, `glm-5.2`, and Pi's default model |
+| G5 | Small footprint: six source files, zero runtime dependencies, no build | `package.json` has no `dependencies`; Pi loads `src/` through Jiti |
+| G6 | Degrades, does not fail: one provider outage does not kill either tool | Failover unit tests with an injected failing fetch |
+
+Non-goals: re-ranking, deduplication, query rewriting, caching, a config UI,
+providers that require an account, and any HTML parsing on this side of the
+wire. Reserved (not built, not blocked): multi-URL fetch in one call, a
+session-scoped cache if repeated identical calls ever show up in transcripts.
+
+## Architecture
 
 ```text
-model ── websearch(query, numResults) ──▶ prepareArguments
-                                              │
-                                              ▼
-                                     search()  (src/websearch.ts)
-                                              │  ordered providers
-                        ┌─────────────────────┴─────────────────────┐
-                        ▼                                           ▼
-                 Exa MCP endpoint                            Parallel MCP endpoint
-            POST tools/call web_search_exa              POST tools/call web_search
-                        │                                           │
-                        └─────────────┬─────────────────────────────┘
-                                      ▼
-                              provider parser → SearchResult[]
-                                      │
-                                      ▼
-                             formatResults()  (src/format.ts)
-                                      │  budgeted, numbered text
-                                      ▼
-                                  tool result
+model ── search(query, numResults) ──┐         ┌── fetch(url, maxChars) ── model
+                                     ▼         ▼
+                       prepareSearchArguments  prepareFetchArguments   (aliases, clamps)
+                                     ▼         ▼
+                            search.ts          fetch.ts                (per-tool logic + parsers)
+                                     └────┬────┘
+                                          ▼
+                                 mcp.ts failover()                     (ordered providers, timeouts)
+                                          ▼
+                                 mcp.ts callMcp()                      (one JSON-RPC tools/call POST)
+                              ┌───────────┴───────────┐
+                              ▼                       ▼
+                     https://mcp.exa.ai/mcp   https://search.parallel.ai/mcp
 ```
-
-## Repository Layout
 
 | Path | Responsibility |
 |------|----------------|
-| `src/index.ts` | Pi registration: tool name, schema, description, snippet, TUI call line. No search logic. |
-| `src/websearch.ts` | Config resolution, argument normalization, failover, error text. No Pi imports, so it is unit-testable standalone. |
-| `src/providers.ts` | MCP transport, provider adapters, response parsing into `SearchResult[]`. |
-| `src/format.ts` | Character budgeting and compact rendering. |
-| `test/*.test.ts` | Node test runner; no network. |
+| `src/index.ts` | Registration only: names, schemas, descriptions, call lines, pi-briefly handshake |
+| `src/config.ts` | Environment resolution, clamps, shared argument helpers |
+| `src/mcp.ts` | Transport, response framing, failover, text helpers shared by both tools |
+| `src/search.ts` | Search arguments, provider calls, parsers, budgeted list rendering |
+| `src/fetch.ts` | Fetch arguments, provider calls, parsers, budgeted page rendering |
+| `src/row-decoration.ts` | Optional handover of the call line to pi-briefly |
+| `test/*.test.ts` | Node test runner, no network, fake `Fetcher` injection |
 
-## Tool Contract
+`search.ts`, `fetch.ts`, `mcp.ts` and `config.ts` import nothing from Pi or
+TypeBox, so the whole behavior is testable without the host.
 
-| Field | Value |
-|-------|-------|
-| Name | `websearch` |
-| `promptSnippet` | `Search the web for current facts, docs, news, and prices` |
-| Parameters | `query: string` (required), `numResults?: number` (1–10) |
-| Output | Plain text: numbered list of `[title](url) (date)` plus a truncated excerpt |
-| `details` | `{ query, numResults, provider }` for renderers and debugging |
+## Tool Contracts
 
-Deliberate omissions:
+| | `search` | `fetch` |
+|---|---|---|
+| Parameters | `query: string`, `numResults?: 1–10` | `url: string`, `maxChars?: 1–50000` |
+| Model-side ceiling | `PI_WEB_SEARCH_RESULTS` | `PI_WEB_FETCH_CHARS` |
+| Output | Numbered `[title](url) (date)` + excerpt, `(+N more results omitted)` | `[title](url)`, body, `(truncated at N characters)` |
+| Empty answer | `No search results found for "…"` | `Nothing readable at …` |
+| `details` | `{ query, numResults, provider }` | `{ url, chars, truncated, provider }` |
 
-- **No enums or unions.** `numResults` is a bounded number; there is no `type`
-  or `mode` parameter. Exit OpenCode's `type` / `livecrawl` /
-  `contextMaxCharacters` knobs, which were provider feature flags leaking into
-  the model's schema. Everything the model sends must change what it gets back.
-- **No `promptGuidelines`.** The description already states the purpose; an
-  extra system-prompt bullet costs tokens on every request to repeat it.
-- **No URL mode.** Fetching is a reserved capability (GOALS.md), not a second
-  parameter that half-works.
+Deliberate omissions: no `type` / `mode` / `format` parameters (provider feature
+flags leaking into the schema), no `promptGuidelines` (the description already
+states the purpose; a system-prompt bullet costs tokens on every turn), no
+multi-URL fetch (one page per call keeps the budget legible).
 
-`prepareArguments` normalizes before schema validation: string args, `q` /
-`search_query` / `query_string` / `text` aliases, nested `{text}` objects,
-numeric strings for counts, `limit` / `count` / `num_results` / `maxResults`
-aliases, and clamping to 1–10. Queries are whitespace-collapsed and capped at
-1000 characters. This exists because a validation error costs a model round
-trip, and weaker models are exactly who the tool must serve (Clause 4).
-
-### Row ownership
-
-The call line is this extension's, but not unconditionally: Pi has no
-renderer-only tool override, so a row can only be restyled by the extension that
-owns the tool handing it over. `src/row-decoration.ts` does that through the
-row decorator hub `pi-briefly` publishes on `Symbol.for("pi.toolRowDecorator.v1")`.
-The tool name, schema, description, `prepareArguments` and `execute` stay here in
-every case — only `renderCall` / `renderResult` / `renderShell` are handed over,
-and only while terse mode is on. Nothing imports `pi-briefly`, and with it absent
-the registration is byte-for-byte the one this extension always made.
+Argument normalization runs before schema validation because a validation
+error costs a model round trip, and weaker models are exactly who this must
+serve (Principle 4). Search: `q` / `search_query` / `query_string` / `text`,
+nested `{text}`, `limit` / `count` / `num_results` / `maxResults`, numeric
+strings, whitespace collapse, 1000-character cap. Fetch: `link` / `href` /
+`uri`, `<…>` wrapping, a missing scheme becomes `https://`, `max_chars` /
+`maxCharacters` / `limit`.
 
 ## Providers
-
-Both backends speak MCP-over-HTTP: one `tools/call` JSON-RPC POST, no session
-handshake, no SDK.
 
 | | Exa | Parallel |
 |---|---|---|
 | Endpoint | `https://mcp.exa.ai/mcp` | `https://search.parallel.ai/mcp` |
-| Tool | `web_search_exa` | `web_search` |
-| Arguments | `{ query, numResults }` | `{ objective, search_queries: [query], session_id }` |
+| Search call | `web_search_exa { query, numResults }` | `web_search { objective, search_queries, session_id }` |
+| Search reply | Text, `Title:/URL:/Published:/Highlights:` blocks | JSON, `results[] { title, url, publish_date, excerpts[] }` |
+| Fetch call | `web_fetch_exa { urls: [url], maxCharacters }` | `web_fetch { urls: [url], full_content: true, session_id }` |
+| Fetch reply | Markdown: `# Title`, `URL:` line, body with the title repeated | JSON, `results[] { title, url, full_content, excerpts[] }`, `errors[]` |
 | Auth | none; optional `?exaApiKey=` | none; optional `Authorization: Bearer` |
-| Response | SSE or JSON; `result.content[].text` in a `Title:/URL:/Highlights:` layout | JSON; `result.content[].text` is a JSON document with `results[]` |
 | Role | primary | failover |
 
-Why this pair:
+Both replies arrive as either plain JSON or SSE `data:` lines; `readMcpText`
+accepts both. A tool-level `result.isError: true` is a failure even at HTTP 200,
+because Exa answers a bad key that way and treating it as content would turn a
+401 into "no results". Error text is cut to one 300-character line before it
+reaches the model. Bodies over 2 MB are refused before parsing.
 
-- **Keyless satisfies Clause 2.** Both work on a fresh install. API keys only
-  raise rate limits.
-- **Independent failure modes satisfy Clause 5.** Different operators,
-  different infrastructure; a retry against the same endpoint rarely helps.
-- **Shape diversity is contained.** Two parsers behind one `SearchResult[]`
-  boundary. Adding a provider touches `providers.ts` only (Clause 7).
+Parallel's `full_content` is requested and cut locally; Exa is asked for the
+budget plus 200 characters so a word-boundary cut still lands inside it.
 
-OpenCode's `websearch` tool was the prior art. Kept: the keyless MCP transport,
-JSON-RPC envelope, SSE-or-JSON tolerance, and the Exa/Parallel pairing. Changed:
-structured parsing and budgeting instead of forwarding `result.content[].text`
-verbatim.
+## Budgets
 
-## Compaction
+| Budget | Default | Range | Applies to |
+|--------|---------|-------|------------|
+| `search.maxResults` | 5 | 1–10 | Results requested, and the most the model may ask for |
+| `search.maxChars` | 6000 | 500–50000 | The whole rendered list |
+| `search.perResultChars` | 1200 | 200–10000 | One excerpt |
+| `fetch.maxChars` | 8000 | 500–50000 | One page, and the most the model may ask for |
+| `timeoutMs` | 12000 | 1000–60000 | One provider attempt |
 
-Raw provider text is evidence of what the provider optimized for -- complete
-page extracts, which is not what a model needs first (Clause 1).
-
-Per result, in order:
-
-1. Split Exa's `Title:` blocks (or read Parallel's `results[]`).
-2. Keep title, URL, and publish date only when present and meaningful
-   (`N/A` is dropped).
-3. Drop Exa's `...` chunk separators, trailing spaces, and blank-line runs.
-4. Truncate the excerpt to `perResultChars`, preferring a word boundary.
-5. Stop adding results when the remaining budget cannot fit a useful excerpt
-   (160 characters) and report how many were omitted.
-
-Defaults and worst cases:
-
-| Budget | Default | Range | Effect |
-|--------|---------|-------|--------|
-| `maxChars` | 6000 | 500–50000 | Soft ceiling for the whole result |
-| `perResultChars` | 1200 | 200–10000 | Ceiling for one excerpt |
-| `maxResults` | 5 | 1–10 | Requested from the provider |
-
-The configured `maxResults` is also the ceiling for what the model may request
-per call, so the context cost of one search cannot be raised by the model.
-
-Measured compaction: the same Exa query returned 20,834 characters of raw text
-(5 results) and 5,450 characters after formatting (-73%), while still answering
-the question. A default search lands near 1.2–1.6K tokens including its
-headers.
-
-## Configuration
-
-Environment only. No config file, no command, no persisted state (Clause 6).
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `EXA_API_KEY` | unset | Higher Exa rate limits |
-| `PARALLEL_API_KEY` | unset | Higher Parallel rate limits |
-| `PI_WEBSEARCH_PROVIDER` | `auto` | Force `exa` or `parallel`; anything else means Exa → Parallel failover |
-| `PI_WEBSEARCH_MAX_RESULTS` | `5` | Requested result count, clamped 1–10 |
-| `PI_WEBSEARCH_MAX_CHARS` | `6000` | Whole-result budget, clamped 500–50000 |
-| `PI_WEBSEARCH_PER_RESULT_CHARS` | `1200` | Per-excerpt budget, clamped 200–10000 |
-| `PI_WEBSEARCH_TIMEOUT_MS` | `12000` | Per-provider timeout, clamped 1000–60000 |
-
-Invalid values fall back to defaults; none of them can make the tool
-unavailable (Clause 2).
-
-## Failover, Errors, and Cancellation
-
-- Providers run in order. The next one starts when the current one throws or
-  returns zero results.
-- Every failure is recorded as `<provider>: <reason>`; when all fail, the tool
-  throws `websearch failed (exa: HTTP 500; parallel: timed out)`. The provider
-  name is what makes the message actionable.
-- Zero results across healthy providers is not an error: the model gets
-  `No search results found for "<query>". Try a different query.`
-- Each attempt gets its own `AbortSignal.timeout(config.timeoutMs)` combined
-  with Pi's tool-cancellation signal. A caller abort stops the loop
-  immediately and is never reported as a provider failure.
-- Response bodies over 2 MB are refused before parsing.
-- A JSON-RPC `error` payload is surfaced as the provider failure reason, not
-  swallowed.
-- A tool-level `result.isError: true` payload is a failure too, even though the
-  HTTP status is 200. Exa answers a bad API key exactly this way, and treating
-  it as content would turn an auth failure into a misleading "no results".
-  Error text is reduced to one bounded line before it reaches the model.
-- An invalid `EXA_API_KEY` / `PARALLEL_API_KEY` can only cost that provider its
-  attempt: the failure is named, failover continues keyless, and the search
-  still succeeds. OpenCode's `opencode` / `opencode-go` credentials are model
-  inference keys and are rejected by both search backends (verified: Exa 401,
-  Parallel 401), so they are deliberately not forwarded.
-
-## Deliberate Non-Engineering
-
-- **No build step.** Pi loads TypeScript through Jiti; a `dist/` artifact would
-  be a second source of truth (Clause 6).
-- **No npm runtime dependencies.** `typebox` and `@earendil-works/pi-tui` are
-  aliases the host already provides.
-- **No caching or deduplication.** Neither has shown up in real use; both add
-  state.
-- **No TUI result renderer.** `renderCall` prints `websearch <query>` so the
-  transcript shows the intent; the default result renderer collapses long
-  output and expands on demand, which is correct and costs no code.
+Search stops adding results when fewer than 160 characters of budget remain and
+reports the omission. Fetch cuts at a word boundary and appends a truncation
+line. Measured: a default search renders in 1.2–1.6K tokens; a default fetch
+in at most ~2K.
 
 ## Verification
 
-- `npm test` — 25 tests, no network: transport framing (JSON/SSE/error), both
-  parsers, compaction budgets, config clamps, argument normalization, failover,
-  combined failure, empty results, caller abort.
-- `npm run typecheck` — strict TypeScript, no emit.
-- Live smoke — real keyless searches through `src/websearch.ts` measured
-  1.4–1.6 s and 5.4–5.7 KB per default search.
-- End-to-end — Pi print-mode runs with `-nbt -t websearch` on
-  `doubao-seed-2-1-turbo` and `glm-5.2` both produced answers with correct
-  current facts and source URLs.
+- `npm test`: 38 tests, no network. Transport framing, failover, both parsers
+  for both tools, budgets, config clamps, argument normalization, registration,
+  the pi-briefly handshake.
+- `npm run typecheck`: strict TypeScript, no emit.
+- Live, keyless, stripped environment on 2026-09-11: Exa search 3 results in
+  2.0 s (1792 chars); Exa fetch of a GitHub page in 0.26 s, truncated at 2000;
+  Parallel fetch of example.com in 0.31 s.
+- End-to-end in Pi print mode: the model chained `search` then `fetch` and
+  named the newest release on the page it read.
 
-## Known Assumptions and Risks
+## Assumptions and Risks
 
 | Assumption | If it breaks | Mitigation |
 |------------|--------------|------------|
-| Exa's `Title:/URL:/Highlights:` layout is stable | Results parse as empty | Parallel failover still answers; parser fixtures make the drift visible in tests |
-| Keyless MCP endpoints stay keyless | Zero-config search fails | API-key env vars are already supported; a third adapter fits behind the same boundary |
-| Parallel's free tier tolerates a per-process `session_id` | Rate-limited failover | Failover is optional; Exa alone remains the default path |
-| Provider excerpts contain the answer | Model needs a follow-up search | `PI_WEBSEARCH_PER_RESULT_CHARS` raises the budget without a code change |
+| Exa's text layouts stay stable | Results parse as empty, fetch body keeps a stray header line | Parallel answers; parser fixtures in tests make drift visible |
+| Keyless endpoints stay keyless | Zero-config fails | Key env vars already work; a third adapter fits behind `mcp.ts` |
+| Parallel's free tier tolerates a per-process `session_id` | Rate-limited failover | Exa alone remains the default path |
+| Provider extraction is good enough | Model needs another fetch | `maxChars` and `PI_WEB_FETCH_CHARS` raise the budget without a code change |
 
 ## Decision Log
 
-| Decision | Alternatives rejected | Clauses |
-|----------|-----------------------|---------|
-| MCP-over-HTTP transport to keyless endpoints | Hosted provider search (model-dependent, opaque); Exa REST (requires a key); MCP server process (extra runtime); DuckDuckGo HTML scraping (fragile, ToS) | 2, 5, 6 |
-| Structured compaction with a budget | Forward provider text verbatim (21 KB per search); re-rank or summarize with another model call (latency, cost, unverifiable judgement) | 1, 3 |
-| Two providers, ordered failover | Single provider (one outage kills the tool); racing both (double load, free-tier burn) | 3, 5 |
-| `websearch` as the tool name | `web_search` (collides conceptually with provider-hosted tools of the same name) | 4 |
-| Tolerant argument normalization | Strict schema (validation round trip for weak models); no normalization (failed calls) | 4 |
-| No `webfetch` in v0.1 | Ship both (two tools' context cost, two capability surfaces to verify) | 1, 7 |
-| Hand the call line to `pi-briefly` when it is installed | Own the row unconditionally (a second, duplicated terse renderer to keep in step); ask Pi for a renderer-only hook (none exists, `registerTool` takes over execution) | 5 |
+| Decision | Alternatives rejected | Principles |
+|----------|-----------------------|------------|
+| MCP-over-HTTP to keyless endpoints | Hosted provider search (model-dependent, opaque); Exa REST (needs a key); MCP server process; HTML scraping (fragile, ToS) | 2, 5, 6 |
+| Fetch through the same MCP endpoints | Direct HTTP + turndown / htmlparser2 as in OpenCode (two runtime dependencies, an HTML pipeline to maintain, no failover) | 5, 6, 7 |
+| Structured compaction under a budget | Forward provider text verbatim (21 KB per search); summarize with another model call (latency, cost) | 1, 3 |
+| Two providers, ordered failover | Single provider (one outage kills both tools); racing both (double load, free-tier burn) | 3, 5 |
+| Two tools named `search` and `fetch` | One `web` tool with a `mode` enum (an enum weak models fumble, two budgets under one name); `websearch` / `webfetch` (longer, the prefix says nothing the description does not) | 4, 7 |
+| Shared `failover()` in `mcp.ts` | A loop per tool (two copies of the abort and error-naming rules to keep aligned) | 6 |
+| Tolerant argument normalization | Strict schema (a round trip for weak models); none (failed calls) | 4 |
+| One URL per fetch | Batch `urls[]` as the providers allow (one budget spread over N pages is illegible to the model) | 1, 7 |
+| Env prefix `PI_WEB_*` | Keep `PI_WEBSEARCH_*` (would misname the fetch budgets); per-tool prefixes (two ways to pin a provider) | 6 |
+| Hand call lines to pi-briefly when present | Own the rows unconditionally (a duplicated terse renderer); a renderer-only Pi hook (none exists) | 5 |
+| Merge GOALS and PHILOSOPHY into this file | Keep three documents (about 750 lines of prose for 650 lines of code, cross-referenced by clause number) | 6 |
