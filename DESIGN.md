@@ -36,12 +36,13 @@ different shape or does not ship. Numbers are permanent so decisions can cite th
 | G2 | Small context cost: search ≤ 6000 chars, fetch ≤ 8000 chars by default; payloads compacted, never forwarded | Unit tests pin the budgets; live search measured 20.8 KB raw → 5.5 KB rendered |
 | G3 | Fast: typical call 0.3–2 s, worst case 12 s per provider | Live smoke; `AbortSignal.timeout` at the transport |
 | G4 | Model-agnostic | Verified end-to-end on `doubao-seed-2-1-turbo`, `glm-5.2`, and Pi's default model |
-| G5 | Small footprint: six source files, zero runtime dependencies, no build | `package.json` has no `dependencies`; Pi loads `src/` through Jiti |
+| G5 | Small footprint: eight source files, zero runtime dependencies, no build | `package.json` has no `dependencies`; Pi loads `src/` through Jiti, and a graphical host bundles `src/ui.tsx` itself |
 | G6 | Degrades, does not fail: one provider outage does not kill either tool | Failover unit tests with an injected failing fetch |
 
 Non-goals: re-ranking, deduplication, query rewriting, caching, a config UI,
-providers that require an account, and any HTML parsing on this side of the
-wire. Reserved (not built, not blocked): multi-URL fetch in one call, a
+session state a window could browse, providers that require an account, and any
+HTML parsing on this side of the wire. The desktop half is not an exception: it
+draws one call's row from that call's own `details`, and keeps nothing. Reserved (not built, not blocked): multi-URL fetch in one call, a
 session-scoped cache if repeated identical calls ever show up in transcripts.
 
 ## Architecture
@@ -70,10 +71,17 @@ model ── search(query, numResults) ──┐         ┌── fetch(url, ma
 | `src/search.ts` | Search arguments, provider calls, parsers, budgeted list rendering |
 | `src/fetch.ts` | Fetch arguments, provider calls, parsers, budgeted page rendering |
 | `src/row-decoration.ts` | Optional handover of the call line to pi-briefly |
+| `src/ui.tsx` | The desktop half: the same two rows, for a graphical host |
+| `src/pid-ui.d.ts` | A local mirror of that host's types, so `tsc` can check the half |
 | `test/*.test.ts` | Node test runner, no network, fake `Fetcher` injection |
 
 `search.ts`, `fetch.ts`, `mcp.ts` and `config.ts` import nothing from Pi or
 TypeBox, so the whole behavior is testable without the host.
+
+`ui.tsx` imports nothing but the host's own primitives and the `details` types
+`index.ts` exports, so it stays inside Principle 6: the host supplies the
+components at load time, nothing is installed, and the terminal half never
+touches it. A host that does not load it loses the row and nothing else.
 
 ## Tool Contracts
 

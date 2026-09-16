@@ -112,6 +112,17 @@ Providers run in order. The next one runs when the current one throws or answers
 
 When [pi-briefly](https://github.com/jinhuang712/pi-briefly) is installed and terse mode is on, both call lines are handed to it through the row decorator hub. Names, schemas and execution stay here.
 
+## 🖥️ In a window
+
+`renderCall` builds a pi-tui line, and only a terminal can mount one. So this extension ships a second half, `src/ui.tsx`, declared as `"pid": { "ui": "./src/ui.tsx" }` — a graphical host such as [PID](https://github.com/jinhuang712/pid) loads it and gets the same two rows drawn out of its own components.
+
+```text
+Searched the web  pi extension rpc              exa · 5 results
+Fetched           https://opencode.ai/docs/go/  parallel · 6,185 chars · truncated
+```
+
+Both halves read the same `details` the tool already returns, so the window says what the terminal says plus the two facts the terminal line has no room for: which backend answered, and how much came back. A host that has never heard of the file loads the tools alone and draws its own generic row.
+
 ## 🩹 Troubleshooting
 
 | Symptom | Cause | Fix |

@@ -69,6 +69,12 @@ pi -p --no-session -nc -nbt -t search,fetch -e "$PWD/src/index.ts" "<prompt>"
   the registration unchanged.
 - Do not add a config UI, settings file, or session cache without a
   `DESIGN.md` decision.
+- The desktop half (`src/ui.tsx`) draws only what the call it is given already
+  reports. It may import the host's primitives from `@pid/ui` and this
+  repository's own modules, and nothing else — no npm package, no build step,
+  no utility class. A host's stylesheet is built from that host's own sources,
+  so a class no host file uses does not exist by the time this loads; layout is
+  a primitive like everything else. Neither half may assume the other ran.
 - `README.md`, `DESIGN.md`, `CHANGELOG.md` and tests move with behavior. A
   change with stale docs is unfinished.
 

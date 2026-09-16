@@ -2,6 +2,20 @@
 
 All notable changes to `pi-lite-web` are documented here.
 
+## [Unreleased]
+
+### Added
+
+- **A graphical host gets the same two rows, drawn by this extension.** `renderCall` returns a
+  pi-tui line and only a terminal can mount one, so the extension ships a second half — `src/ui.tsx`,
+  declared as `"pid": { "ui": … }` — which draws `search` and `fetch` out of the host's own row
+  frame. Both halves read the same `details` the tool already returns, so the window carries the two
+  facts the terminal line has no room for: the backend that answered, and how much came back
+  (`exa · 5 results`, `parallel · 6,185 chars · truncated`). Nothing is guessed by the host: one that
+  does not load the second half draws its own generic row.
+- `npm run typecheck` now covers the desktop half, against a local mirror of the host's types
+  (`src/pid-ui.d.ts`). The host remains the source of truth; the mirror only catches a typo here.
+
 ## [0.2.0] - 2026-09-11
 
 The extension is now `pi-lite-web` and ships two tools. Upgrading from

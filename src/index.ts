@@ -37,8 +37,10 @@ const FETCH_PARAMETERS = Type.Object({
 	),
 });
 
-type SearchDetails = { query: string; numResults: number; provider: string };
-type FetchDetails = { url: string; chars: number; truncated: boolean; provider: string };
+// Exported because the desktop half (`src/ui.tsx`) draws these rows and must agree with the half
+// that produces them. One definition, two renderers.
+export type SearchDetails = { query: string; numResults: number; provider: string };
+export type FetchDetails = { url: string; chars: number; truncated: boolean; provider: string };
 
 type AnyDefinition = ToolDefinition<any, any>;
 

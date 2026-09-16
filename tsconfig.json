@@ -7,6 +7,8 @@
 		"allowImportingTsExtensions": true,
 		"noEmit": true,
 		"strict": true,
+		"jsx": "react-jsx",
+		"jsxImportSource": "@pid",
 		"skipLibCheck": true,
 		"types": ["node"]
 	},
