@@ -13,6 +13,7 @@
  * tools alone and loses nothing but the row.
  */
 
+import { Badge, Say } from "@pid/ui";
 import type { FetchDetails, SearchDetails } from "./index.ts";
 
 /** What the host hands a tool renderer. Mirrors PID's `ToolDraw`; the host is the source of truth. */
@@ -22,7 +23,7 @@ interface Draw {
 	Frame: (props: {
 		verb?: string;
 		detail?: string;
-		meta?: string;
+		meta?: unknown;
 		body?: "args" | "command" | "none";
 		children?: unknown;
 	}) => unknown;
@@ -40,10 +41,25 @@ const str = (args: unknown, key: string): string => {
 
 const done = (draw: Draw): boolean => draw.run?.status !== undefined && draw.run.status !== "running";
 
-/** Only what the tool actually reported. A row that guesses a provider is worse than one that waits. */
-function meta(parts: (string | undefined)[]): string | undefined {
-	const kept = parts.filter((p): p is string => Boolean(p));
-	return kept.length > 0 ? kept.join(" · ") : undefined;
+/**
+ * The end of the row: which backend answered, then how much it returned.
+ *
+ * The provider is a tinted pill rather than more grey text, which is the whole difference between
+ * this row and `read` or `bash` above it. Those go one place and always the same place, so there is
+ * nothing to mark. A search went to Exa or to Parallel, and which one it was explains a result that
+ * looks different from the last one — a fact worth a glance, and one only this extension has.
+ *
+ * Nothing is drawn until the call reports. A row that guesses a provider is worse than one that waits.
+ */
+function meta(provider: string | undefined, parts: (string | undefined)[]): unknown {
+	const said = parts.filter((p): p is string => Boolean(p)).join(" · ");
+	if (!provider && !said) return undefined;
+	return (
+		<>
+			{provider && <Badge title="the backend that answered">{provider}</Badge>}
+			{said && <Say tone="faint">{said}</Say>}
+		</>
+	);
 }
 
 export default function register(pid: Api) {
@@ -56,7 +72,7 @@ export default function register(pid: Api) {
 				<Frame
 					verb={done(draw) ? "Searched the web" : "Searching the web"}
 					detail={str(draw.call.arguments, "query")}
-					meta={meta([d?.provider, d ? `${d.numResults} results` : undefined])}
+					meta={meta(d?.provider, [d ? `${d.numResults} results` : undefined])}
 				/>
 			);
 		},
@@ -71,8 +87,7 @@ export default function register(pid: Api) {
 				<Frame
 					verb={done(draw) ? "Fetched" : "Fetching"}
 					detail={str(draw.call.arguments, "url")}
-					meta={meta([
-						d?.provider,
+					meta={meta(d?.provider, [
 						d ? `${d.chars.toLocaleString()} chars` : undefined,
 						d?.truncated ? "truncated" : undefined,
 					])}

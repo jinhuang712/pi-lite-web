@@ -75,6 +75,11 @@ pi -p --no-session -nc -nbt -t search,fetch -e "$PWD/src/index.ts" "<prompt>"
   no utility class. A host's stylesheet is built from that host's own sources,
   so a class no host file uses does not exist by the time this loads; layout is
   a primitive like everything else. Neither half may assume the other ran.
+- The desktop row marks what the call went through — a tinted `Badge` for the
+  backend that answered — and states the rest as plain text. That is the whole
+  difference from the host's own `read` and `bash` rows, and it holds only
+  because a built-in tool always goes to the same place. Do not add a mark that
+  carries no fact.
 - `README.md`, `DESIGN.md`, `CHANGELOG.md` and tests move with behavior. A
   change with stale docs is unfinished.
 

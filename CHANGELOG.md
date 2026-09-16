@@ -10,9 +10,11 @@ All notable changes to `pi-lite-web` are documented here.
   pi-tui line and only a terminal can mount one, so the extension ships a second half — `src/ui.tsx`,
   declared as `"pid": { "ui": … }` — which draws `search` and `fetch` out of the host's own row
   frame. Both halves read the same `details` the tool already returns, so the window carries the two
-  facts the terminal line has no room for: the backend that answered, and how much came back
-  (`exa · 5 results`, `parallel · 6,185 chars · truncated`). Nothing is guessed by the host: one that
-  does not load the second half draws its own generic row.
+  facts the terminal line has no room for: the backend that answered, and how much came back. The
+  backend is a tinted pill and the counts are plain, which is what makes the row read differently
+  from the host's own `read` and `bash` above it — those go one place and always the same place, so
+  they have nothing to mark. Nothing is guessed by the host: one that does not load the second half
+  draws its own generic row.
 - `npm run typecheck` now covers the desktop half, against a local mirror of the host's types
   (`src/pid-ui.d.ts`). The host remains the source of truth; the mirror only catches a typo here.
 
