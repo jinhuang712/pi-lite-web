@@ -1,8 +1,17 @@
 # Changelog
 
-All notable changes to `pi-lite-web` are documented here.
+All notable changes to `pid-lite-web` are documented here.
 
 ## [Unreleased]
+
+### Changed
+
+- **Renamed to `pid-lite-web`.** The extension grew a half that only a graphical host loads, and the
+  prefix says so. Nothing else moves: the tools are still `search` and `fetch`, the environment
+  variables are still `PI_WEB_*` — they name the host that runs the extension, not the extension —
+  and there is no configuration file to migrate, because there never was one. A checkout installed
+  by path keeps working once the path is updated; `pi install` from GitHub follows the repository's
+  own redirect.
 
 ### Added
 
@@ -20,7 +29,7 @@ All notable changes to `pi-lite-web` are documented here.
 
 ## [0.2.0] - 2026-09-11
 
-The extension is now `pi-lite-web` and ships two tools. Upgrading from
+The extension is now `pid-lite-web` and ships two tools. Upgrading from
 `pi-lite-websearch` means reinstalling under the new name and renaming any
 `PI_WEBSEARCH_*` environment variables to their `PI_WEB_*` equivalents below.
 

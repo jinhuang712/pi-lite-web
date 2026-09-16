@@ -1,5 +1,5 @@
 {
-	"name": "pi-lite-web",
+	"name": "pid-lite-web",
 	"version": "0.2.0",
 	"description": "Two compact, keyless web tools for Pi: search and fetch. No SDK, no API key, bounded context cost.",
 	"private": true,
@@ -9,12 +9,12 @@
 	"files": ["src", "README.md", "CHANGELOG.md", "LICENSE"],
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/jinhuang712/pi-lite-web.git"
+		"url": "git+https://github.com/jinhuang712/pid-lite-web.git"
 	},
 	"bugs": {
-		"url": "https://github.com/jinhuang712/pi-lite-web/issues"
+		"url": "https://github.com/jinhuang712/pid-lite-web/issues"
 	},
-	"homepage": "https://github.com/jinhuang712/pi-lite-web#readme",
+	"homepage": "https://github.com/jinhuang712/pid-lite-web#readme",
 	"engines": {
 		"node": ">=22.19.0"
 	},

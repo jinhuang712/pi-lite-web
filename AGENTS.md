@@ -2,7 +2,7 @@
 
 ## Project
 
-`pi-lite-web` is a Pi extension that adds two compact, keyless tools: `search`
+`pid-lite-web` is a Pi extension that adds two compact, keyless tools: `search`
 and `fetch`. Read `DESIGN.md` before changing behavior; it holds the
 principles, budgets, provider contracts and the decision log. `README.md` is
 the user manual. Entry point: `src/index.ts`.

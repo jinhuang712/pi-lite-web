@@ -1,4 +1,4 @@
-# pi-lite-web Design
+# pid-lite-web Design
 
 > Established 2026-09-10, revised 2026-09-11 when `fetch` shipped and the
 > extension was renamed from pi-lite-websearch. Principles, goals, concrete

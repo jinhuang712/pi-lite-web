@@ -1,5 +1,5 @@
 /**
- * pi-lite-web: two compact, keyless tools for Pi — `search` and `fetch`.
+ * pid-lite-web: two compact, keyless tools for Pi — `search` and `fetch`.
  *
  * This module owns registration only: names, schemas, descriptions, and the
  * TUI call line. Behavior lives in search.ts and fetch.ts. See DESIGN.md.

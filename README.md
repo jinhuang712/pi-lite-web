@@ -1,4 +1,4 @@
-# 🌐 pi-lite-web
+# 🌐 pid-lite-web
 
 Two compact, keyless web tools for [Pi](https://pi.dev): `search` and `fetch`. No SDK, no API key, no server process, no build step, and a hard budget on how much context one call may consume.
 
@@ -20,7 +20,7 @@ fetch https://pi.dev/news/releases
 
 ## 🤔 Why
 
-| | Provider-hosted search | MCP server | Raw API passthrough | pi-lite-web |
+| | Provider-hosted search | MCP server | Raw API passthrough | pid-lite-web |
 |---|---|---|---|---|
 | Works on any model | ❌ | ✅ | ✅ | ✅ |
 | Works with no API key | ⚠️ provider-dependent | ⚠️ usually not | ⚠️ usually not | ✅ |
@@ -35,14 +35,14 @@ The goal is the smallest result that still answers the question. A search return
 ## 📦 Install
 
 ```bash
-pi install git:github.com/jinhuang712/pi-lite-web
+pi install git:github.com/jinhuang712/pid-lite-web
 ```
 
 From a checkout, or for one run without installing:
 
 ```bash
-pi install -l /path/to/pi-lite-web
-pi -e /path/to/pi-lite-web/src/index.ts
+pi install -l /path/to/pid-lite-web
+pi -e /path/to/pid-lite-web/src/index.ts
 ```
 
 Restart Pi after installing. Nothing is written to disk.
